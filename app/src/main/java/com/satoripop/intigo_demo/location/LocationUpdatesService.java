@@ -1,5 +1,7 @@
 package com.satoripop.intigo_demo.location;
 
+import android.annotation.SuppressLint;
+import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -37,8 +39,6 @@ import com.satoripop.intigo_demo.R;
 
 import java.util.Date;
 
-import static com.satoripop.intigo_demo.MainActivity.UPDATE_INTERVAL_IN_DISPLACEMENT;
-import static com.satoripop.intigo_demo.MainActivity.UPDATE_INTERVAL_IN_MILLISECONDS;
 
 /**
  * A bound and started service that is promoted to a foreground service when location updates have
@@ -62,6 +62,11 @@ public class LocationUpdatesService extends Service {
 
     public static final String LOCATION_EVENT_NAME = "com.sabri.locationExample.LOCATION_INFO";
     public static final String LOCATION_EVENT_DATA_NAME = "LocationData";
+
+
+    public static long UPDATE_INTERVAL_IN_MILLISECONDS = 10 * 1000;
+    public static int PRIORITY = LocationRequest.PRIORITY_HIGH_ACCURACY ;
+    public static long UPDATE_INTERVAL_IN_DISPLACEMENT = 0 ;
 
     /**
      * The name of the channel for notifications.
@@ -246,12 +251,54 @@ public class LocationUpdatesService extends Service {
 
     private BroadcastReceiver mEventReceiver;
 
+    public void changePriority(int priority){
+
+       // removeLocationUpdates();
+
+       // mLocationRequest = new LocationRequest();
+        mLocationRequest.setPriority(priority);
+      //  mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
+       // mLocationRequest.setSmallestDisplacement(UPDATE_INTERVAL_IN_DISPLACEMENT);
+       // mLocationRequest.setFastestInterval(UPDATE_INTERVAL_IN_MILLISECONDS / 2);
+       // mLocationRequest.setMaxWaitTime(UPDATE_INTERVAL_IN_MILLISECONDS * 2);
+
+       requestLocationUpdates();
+
+    }
+
+    public void changeDistanceInterval(long distance, long interval){
+
+        // removeLocationUpdates();
+
+        mLocationRequest = new LocationRequest();
+        mLocationRequest.setPriority(PRIORITY);
+        mLocationRequest.setInterval(interval);
+        mLocationRequest.setSmallestDisplacement(distance);
+        // mLocationRequest.setFastestInterval(UPDATE_INTERVAL_IN_MILLISECONDS / 2);
+        // mLocationRequest.setMaxWaitTime(UPDATE_INTERVAL_IN_MILLISECONDS * 2);
+
+        // requestLocationUpdates();
+
+    }
+
+
     public void createEventReceiver() {
         mEventReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
                 String startStop = intent.getStringExtra("StartStopLocation");
+
+                if(intent.hasExtra("ChangeConfigPriority")){
+                    changePriority(intent.getIntExtra("ChangeConfigPriority",LocationRequest.PRIORITY_HIGH_ACCURACY ));
+                }
+
+               /* if(intent.hasExtra("ChangeConfigDistance") && intent.hasExtra("ChangeConfigInterval")){
+                    changeDistanceInterval(intent.getLongExtra("ChangeConfigDistance",  UPDATE_INTERVAL_IN_DISPLACEMENT) , intent.getLongExtra("ChangeConfigInterval", UPDATE_INTERVAL_IN_MILLISECONDS ));
+                }*/
+
+
                 // Log.i(TAG, "startStop: " + startStop);
+                if(intent.hasExtra("StartStopLocation"))
                 if (startStop.equals("START")) {
                     requestLocationUpdates();
                 } else {
@@ -304,6 +351,7 @@ public class LocationUpdatesService extends Service {
     /**
      * Returns the {@link NotificationCompat} used as part of the foreground service.
      */
+    @SuppressLint("WrongConstant")
     private Notification getNotification() {
         /**
          * PendingIntent that leads to a call to onStartCommand() in this service.
@@ -313,9 +361,14 @@ public class LocationUpdatesService extends Service {
         // intent.putExtra(EXTRA_STARTED_FROM_NOTIFICATION, true);
         // PendingIntent servicePendingIntent = PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
 
+
+        Intent intent = new Intent(this, MainActivity.class);
+        intent.setFlags(PendingIntent.FLAG_ONE_SHOT);
+
         // PendingIntent to launch app.
         PendingIntent activityPendingIntent = PendingIntent.getActivity(this, 0,
-                new Intent(this, MainActivity.class), 0);
+                intent, 0);
+
 
         // CharSequence text = Utils.getLocationText(mLocation);
         CharSequence title = "Locations";
@@ -397,11 +450,11 @@ public class LocationUpdatesService extends Service {
      */
     private void createLocationRequest() {
         mLocationRequest = new LocationRequest();
+        mLocationRequest.setPriority(PRIORITY);
         mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
         mLocationRequest.setSmallestDisplacement(UPDATE_INTERVAL_IN_DISPLACEMENT);
-        mLocationRequest.setFastestInterval(UPDATE_INTERVAL_IN_MILLISECONDS / 2);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        mLocationRequest.setMaxWaitTime(UPDATE_INTERVAL_IN_MILLISECONDS * 2);
+      //  mLocationRequest.setFastestInterval(UPDATE_INTERVAL_IN_MILLISECONDS / 2);
+      //  mLocationRequest.setMaxWaitTime(UPDATE_INTERVAL_IN_MILLISECONDS * 2);
     }
 
     /**
@@ -414,22 +467,22 @@ public class LocationUpdatesService extends Service {
         }
     }
 
-//    /**
+
 //     * Returns true if this is a foreground service.
 //     *
 //     * @param context The {@link Context}.
 //     */
-//    public boolean serviceIsRunningInForeground(Context context) {
-//        ActivityManager manager = (ActivityManager) context.getSystemService(
-//                Context.ACTIVITY_SERVICE);
-//        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(
-//                Integer.MAX_VALUE)) {
-//            if (getClass().getName().equals(service.service.getClassName())) {
-//                if (service.foreground) {
-//                    return true;
-//                }
-//            }
-//        }
-//        return false;
-//    }
+    public boolean serviceIsRunningInForeground(Context context) {
+        ActivityManager manager = (ActivityManager) context.getSystemService(
+                Context.ACTIVITY_SERVICE);
+        for (ActivityManager.RunningServiceInfo service : manager.getRunningServices(
+                Integer.MAX_VALUE)) {
+            if (getClass().getName().equals(service.service.getClassName())) {
+                if (service.foreground) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 }

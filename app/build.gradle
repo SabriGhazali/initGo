@@ -8,7 +8,7 @@ android {
         applicationId "com.satoripop.intigo_demo"
         minSdkVersion 23
         targetSdkVersion 30
-        versionCode 2
+        versionCode 5
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -35,9 +35,4 @@ dependencies {
     implementation 'com.google.code.gson:gson:2.8.7'
     implementation 'com.amitshekhar.android:android-networking:1.0.2'
     implementation 'com.nabinbhandari.android:permissions:3.8'
-
-
-
-
-
 }

@@ -3,7 +3,6 @@ package com.satoripop.intigo_demo;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -18,12 +17,16 @@ import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.location.Location;
+import android.location.LocationManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.PowerManager;
+import android.os.Vibrator;
 import android.provider.Settings;
 import android.text.format.DateFormat;
-import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -36,11 +39,11 @@ import com.androidnetworking.interfaces.OkHttpResponseListener;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingClient;
 import com.google.android.gms.location.GeofencingRequest;
+import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import com.nabinbhandari.android.permissions.PermissionHandler;
 import com.nabinbhandari.android.permissions.Permissions;
 import com.satoripop.intigo_demo.geofence.data.GeofenceData;
@@ -49,10 +52,7 @@ import com.satoripop.intigo_demo.location.LocationCoordinates;
 import com.satoripop.intigo_demo.location.LocationUpdatesService;
 
 import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -74,10 +74,10 @@ public class MainActivity extends AppCompatActivity  {
 
     private BroadcastReceiver mEventReceiverGeofence;
 
-    public static long UPDATE_INTERVAL_IN_MILLISECONDS = 10000;
+    public boolean hasGeofence = false ;
 
+    Locations GEOLOCATION ;
 
-    public static long UPDATE_INTERVAL_IN_DISPLACEMENT = 10;
 
     //Geofence
     public static final String TAG = "BoundaryEvent";
@@ -120,7 +120,9 @@ public class MainActivity extends AppCompatActivity  {
     protected void onStart() {
         super.onStart();
         bindService(new Intent(this, LocationUpdatesService.class), mServiceConnection, Context.BIND_AUTO_CREATE);
+
     }
+
 
 
     @Override
@@ -141,19 +143,25 @@ public class MainActivity extends AppCompatActivity  {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        String[] permissions = new String[]{
+        String[] permissions = Build.VERSION.SDK_INT > Build.VERSION_CODES.P ? new String[]{
                 Manifest.permission.ACCESS_FINE_LOCATION,
                 Manifest.permission.ACCESS_COARSE_LOCATION,
-               // Manifest.permission.ACCESS_BACKGROUND_LOCATION
-        };
+                Manifest.permission.ACCESS_BACKGROUND_LOCATION
+        } : new String[]{
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                };
 
         Permissions.check(this, permissions, null, null, new PermissionHandler() {
             @Override
             public void onGranted() {
+                goToIgnoreBatteryOptimization();
                 createEventReceiver();
                 registerEventReceiver();
                 mGeofencingClient = LocationServices.getGeofencingClient(getApplicationContext());
             }
+
+
 
             @Override
             public void onDenied(Context context, ArrayList<String> deniedPermissions) {
@@ -165,6 +173,9 @@ public class MainActivity extends AppCompatActivity  {
                 return super.onBlocked(context, blockedList);
             }
         });
+
+
+
 
 
         start = findViewById(R.id.start);
@@ -192,6 +203,9 @@ public class MainActivity extends AppCompatActivity  {
             @Override
             public void onClick(View view) {
                 stopBackgroundLocation();
+                arrayOfDistance.clear();
+                arrayOfPoints.clear();
+                removeAll();
             }
         });
 
@@ -222,7 +236,21 @@ public class MainActivity extends AppCompatActivity  {
                     return;
                 }*/
 
-                AndroidNetworking.get("https://tracking-demo.herokuapp.com/api/tracking/published/"+deviceId)
+                if (GEOLOCATION == null)
+                { Toast.makeText(getApplicationContext(),"No locations to show !!!",Toast.LENGTH_SHORT).show();
+                    return;
+                }
+
+                String url = "https://www.google.com/maps/dir/"+GEOLOCATION.getLatitude()+"+"+GEOLOCATION.getLongitude();
+
+
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                startActivity(browserIntent);
+
+
+
+
+              /*  AndroidNetworking.get("https://tracking-demo.herokuapp.com/api/tracking/published/"+deviceId)
                         .build().getAsJSONArray(new JSONArrayRequestListener() {
                     @Override
                     public void onResponse(JSONArray response) {
@@ -245,7 +273,7 @@ public class MainActivity extends AppCompatActivity  {
                     public void onError(ANError error) {
                         // handle error
                     }
-                });
+                });*/
 
             }
         });
@@ -257,6 +285,19 @@ public class MainActivity extends AppCompatActivity  {
         rv_location.setAdapter(locationsAdapter);
 
     }
+
+
+    public void changeConfig(int priority,int distance, long interval) {
+        Log.d("BackgroundLocation", "changePriority:  called" );
+        Intent eventIntent = new Intent("LocationUpdatesService.startStopLocation");
+        eventIntent.putExtra("ChangeConfigPriority",priority );
+       // eventIntent.putExtra("ChangeConfigDistance",distance );
+       // eventIntent.putExtra("ChangeConfigInterval",interval );
+
+        getApplicationContext().sendBroadcast(eventIntent);
+
+    }
+
 
 
     @SuppressLint("ResourceAsColor")
@@ -294,6 +335,10 @@ public class MainActivity extends AppCompatActivity  {
 
     }
 
+    ArrayList<Locations> arrayOfPoints = new ArrayList<>();
+    ArrayList<Float> arrayOfDistance = new ArrayList<>();
+
+
     public void createEventReceiver() {
 
         if (mEventReceiver == null) {
@@ -304,11 +349,50 @@ public class MainActivity extends AppCompatActivity  {
                             intent.getStringExtra(LocationUpdatesService.LOCATION_EVENT_DATA_NAME),
                             LocationCoordinates.class);
 
+                 /*   if(hasGeofence)
+                        return;*/
 
-                    add(new GeofenceData("current",locationCoordinates.getLatitude(),locationCoordinates.getLongitude(),10));
+                    arrayOfPoints.add(new Locations("",new Date().getTime(),locationCoordinates.getLatitude(),locationCoordinates.getLongitude()));
+
+                    if (arrayOfPoints.size() > 8){
+
+                        Location endPoint=new Location("locationB");
+                        endPoint.setLatitude(locationCoordinates.getLatitude());
+                        endPoint.setLongitude(locationCoordinates.getLongitude());
+
+
+                        for(Locations loc : arrayOfPoints)
+                           { Location startPoint=new Location("locationA");
+                             startPoint.setLatitude(loc.getLatitude());
+                             startPoint.setLongitude(loc.getLongitude());
+                               if(startPoint.distanceTo(endPoint) < 3)
+                                   arrayOfDistance.add(startPoint.distanceTo(endPoint));
+                           }
+
+
+                       if(arrayOfDistance.size() >= 8) {
+                              add(new GeofenceData("current",locationCoordinates.getLatitude(),locationCoordinates.getLongitude(),10));
+                              GEOLOCATION = new Locations("",0,locationCoordinates.getLatitude(),locationCoordinates.getLongitude());
+                              //changePriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+                              //stopBackgroundLocation();
+                             changeConfig(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY,5, 1000 * 30);
+                             // locationsList.add(0,new Locations("Change Location Manager Config : "+" Time: "+convertTimestamp(new Date().getTime()),new Date().getTime(),0,0));
+                              Objects.requireNonNull(rv_location.getAdapter()).notifyDataSetChanged();
+                              arrayOfPoints.clear();
+                              arrayOfDistance.clear();
+                       }
+
+                       if(arrayOfPoints.size() > 0)
+                         {arrayOfPoints.remove(0);
+                        arrayOfDistance.remove(0);}
+
+                    }
+
+
+                   /* add(new GeofenceData("current",locationCoordinates.getLatitude(),locationCoordinates.getLongitude(),10));
                     stopBackgroundLocation();
                     locationsList.add(0,new Locations("Stop Location Manager: "+" Time: "+convertTimestamp(new Date().getTime()),new Date().getTime(),0,0));
-                    Objects.requireNonNull(rv_location.getAdapter()).notifyDataSetChanged();
+                    Objects.requireNonNull(rv_location.getAdapter()).notifyDataSetChanged();*/
 
 
                     locationsList.add(0,new Locations("Time: "+ convertTimestamp(locationCoordinates.getTimestamp()) +"\nLatitude: "+locationCoordinates.getLatitude()+
@@ -362,7 +446,12 @@ public class MainActivity extends AppCompatActivity  {
                     if(event.equals("onExit")){
                         locationsList.add(0,new Locations("EXIT : "+ids.get(0)+" Time: "+convertTimestamp(new Date().getTime()),new Date().getTime(),0,0));
                         Objects.requireNonNull(rv_location.getAdapter()).notifyDataSetChanged();
-                        startBackgroundLocation();
+                        //changePriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+                        vibrate();
+                        arrayOfPoints.clear();
+                        arrayOfDistance.clear();
+                      //  startBackgroundLocation();
+                        changeConfig(LocationRequest.PRIORITY_HIGH_ACCURACY,0, 1000 * 10);
                         removeAll();
                     }
 
@@ -413,7 +502,6 @@ public class MainActivity extends AppCompatActivity  {
     }
 
 
-    //geofence
     public void removeAll() {
         mGeofencingClient.removeGeofences(getBoundaryPendingIntent())
                 .addOnSuccessListener(new OnSuccessListener<Void>() {
@@ -422,6 +510,7 @@ public class MainActivity extends AppCompatActivity  {
                         Log.i(TAG, "Successfully removed all geofences");
                         locationsList.add(0,new Locations("Successfully removed all geofences : "+" Time: "+convertTimestamp(new Date().getTime()),new Date().getTime(),0,0));
                         Objects.requireNonNull(rv_location.getAdapter()).notifyDataSetChanged();
+                        hasGeofence = false ;
                     }
                 })
                 .addOnFailureListener(new OnFailureListener() {
@@ -442,12 +531,12 @@ public class MainActivity extends AppCompatActivity  {
         return mBoundaryPendingIntent;
     }
 
-    private GeofencingRequest createGeofenceRequest(List<Geofence> geofences) {
+   /* private GeofencingRequest createGeofenceRequest(List<Geofence> geofences) {
         return new GeofencingRequest.Builder()
                 .setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
                 .addGeofences(geofences)
                 .build();
-    }
+    }*/
 
     private GeofencingRequest createGeofenceRequest(Geofence geofence) {
         return new GeofencingRequest.Builder()
@@ -456,7 +545,7 @@ public class MainActivity extends AppCompatActivity  {
                 .build();
     }
 
-    private void addGeofence(final GeofencingRequest geofencingRequest) {
+/*    private void addGeofence(final GeofencingRequest geofencingRequest) {
         int permission = ActivityCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION);
 
 
@@ -475,8 +564,6 @@ public class MainActivity extends AppCompatActivity  {
                         public void onSuccess(Void aVoid) {
 
 
-
-
                         }
                     })
                     .addOnFailureListener(new OnFailureListener() {
@@ -484,12 +571,11 @@ public class MainActivity extends AppCompatActivity  {
                         public void onFailure(@NonNull Exception e) {
 
 
-
                         }
                     });
         }
 
-    }
+    }*/
 
     private void addGeofence(final GeofencingRequest geofencingRequest, final String requestId) {
         int permission = ActivityCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.ACCESS_FINE_LOCATION);
@@ -511,6 +597,8 @@ public class MainActivity extends AppCompatActivity  {
                             Log.i(TAG, "Successfully added geofence. "+requestId);
                             locationsList.add(0,new Locations("Successfully added geofence. : "+" Time: "+convertTimestamp(new Date().getTime()),new Date().getTime(),0,0));
                             Objects.requireNonNull(rv_location.getAdapter()).notifyDataSetChanged();
+                            hasGeofence = true ;
+                            //vibrate();
 
                         }
                     })
@@ -524,7 +612,7 @@ public class MainActivity extends AppCompatActivity  {
         }
     }
 
-    private void removeGeofence(List<String> requestIds) {
+/*    private void removeGeofence(List<String> requestIds) {
         Log.i(TAG, "Attempting to remove geofence.");
         mGeofencingClient.removeGeofences(requestIds)
                 .addOnSuccessListener(new OnSuccessListener<Void>() {
@@ -541,13 +629,13 @@ public class MainActivity extends AppCompatActivity  {
 
                     }
                 });
-    }
+    }*/
 
-    public void remove(final String boundaryRequestId) {
+/*    public void remove(final String boundaryRequestId) {
         removeGeofence(Collections.singletonList(boundaryRequestId));
-    }
+    }*/
 
-    public void remove(List<GeofenceData> readableArray) {
+ /*   public void remove(List<GeofenceData> readableArray) {
 
         final List<String> boundaryRequestIds = new ArrayList<>();
         for (int i = 0; i < readableArray.size(); ++i) {
@@ -555,14 +643,14 @@ public class MainActivity extends AppCompatActivity  {
         }
 
         removeGeofence(boundaryRequestIds);
-    }
+    }*/
 
     public void add(GeofenceData readableMap) {
         final GeofencingRequest geofencingRequest = createGeofenceRequest(createGeofence(readableMap));
         addGeofence(geofencingRequest, geofencingRequest.getGeofences().get(0).getRequestId());
     }
 
-    public void add(List<GeofenceData> readableArray) {
+ /*   public void add(List<GeofenceData> readableArray) {
         final List<Geofence> geofences = createGeofences(readableArray);
         final List<String> geofenceRequestIds = new ArrayList();
         for (int i=0;i<geofences.size();i++)
@@ -573,7 +661,7 @@ public class MainActivity extends AppCompatActivity  {
         GeofencingRequest geofencingRequest = createGeofenceRequest(createGeofences(readableArray));
 
         addGeofence(geofencingRequest, geofenceRequestIds.toString());
-    }
+    }*/
 
     private Geofence createGeofence(GeofenceData geofence) {
         return new Geofence.Builder()
@@ -584,18 +672,41 @@ public class MainActivity extends AppCompatActivity  {
                 .build();
     }
 
-    private List<Geofence> createGeofences(List<GeofenceData> readableArray) {
+  /*  public List<Geofence> createGeofences(List<GeofenceData> readableArray) {
         List<Geofence> geofences = new ArrayList<>();
         for (int i = 0; i < readableArray.size(); ++i) {
             geofences.add(createGeofence(readableArray.get(i)));
         }
         return geofences;
-    }
+    }*/
 
     public String convertTimestamp(long timestamp){
         Calendar cal = Calendar.getInstance(Locale.ENGLISH);
         cal.setTimeInMillis(timestamp);
         return  DateFormat.format("dd-MM-yyyy hh:mm:ss", cal).toString();
 
+    }
+
+    public void goToIgnoreBatteryOptimization() {
+        Intent intent = new Intent();
+        String packageName = getPackageName();
+        PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        if (pm.isIgnoringBatteryOptimizations(packageName))
+            {intent.setAction(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+       // startActivity(intent);
+                }
+
+        else {
+            startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:"+getPackageName())));
+        }
+
+
+    }
+
+    public void vibrate (){
+        Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+
+        // Vibrate for 400 milliseconds
+        v.vibrate(400);
     }
 }

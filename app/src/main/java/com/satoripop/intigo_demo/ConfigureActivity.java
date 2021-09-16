@@ -7,6 +7,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -20,6 +21,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Locale;
 import java.util.Objects;
 
 public class ConfigureActivity extends AppCompatActivity {
@@ -53,7 +56,7 @@ public class ConfigureActivity extends AppCompatActivity {
             for (int i = 0; i < jsonArr.length(); i++)
             {
                 JSONObject jsonObj = jsonArr.getJSONObject(i);
-                locationsList.add(0, new Locations("Timestamp: "+jsonObj.get("timestamp")  +"\nLatitude: "+jsonObj.get("lat") +"\nLongitude: "+jsonObj.get("lon") ,
+                locationsList.add(0, new Locations("Timestamp: "+convertTimestamp(Long.parseLong(String.valueOf(jsonObj.get("timestamp"))) ) +"\nLatitude: "+jsonObj.get("lat") +"\nLongitude: "+jsonObj.get("lon") ,
                         Long.parseLong(String.valueOf(jsonObj.get("timestamp"))),
                         Double.parseDouble(String.valueOf(jsonObj.get("lat"))) ,
                         Double.parseDouble(String.valueOf(jsonObj.get("lon")))));
@@ -144,6 +147,14 @@ public class ConfigureActivity extends AppCompatActivity {
 
         Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
         startActivity(browserIntent);
+
+    }
+
+
+    public String convertTimestamp(long timestamp){
+        Calendar cal = Calendar.getInstance(Locale.ENGLISH);
+        cal.setTimeInMillis(timestamp);
+        return  DateFormat.format("dd-MM-yyyy hh:mm:ss", cal).toString();
 
     }
 
