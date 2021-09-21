@@ -202,6 +202,7 @@ public class MainActivity extends AppCompatActivity  {
         stop.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+               // changeConfig(LocationRequest.PRIORITY_HIGH_ACCURACY,0, 1000 * 5);
                 stopBackgroundLocation();
                 arrayOfDistance.clear();
                 arrayOfPoints.clear();
@@ -236,7 +237,7 @@ public class MainActivity extends AppCompatActivity  {
                     return;
                 }*/
 
-                if (GEOLOCATION == null)
+               /* if (GEOLOCATION == null)
                 { Toast.makeText(getApplicationContext(),"No locations to show !!!",Toast.LENGTH_SHORT).show();
                     return;
                 }
@@ -245,12 +246,12 @@ public class MainActivity extends AppCompatActivity  {
 
 
                 Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-                startActivity(browserIntent);
+                startActivity(browserIntent);*/
 
 
 
 
-              /*  AndroidNetworking.get("https://tracking-demo.herokuapp.com/api/tracking/published/"+deviceId)
+                AndroidNetworking.get("https://tracking-demo.herokuapp.com/api/tracking/published/"+deviceId)
                         .build().getAsJSONArray(new JSONArrayRequestListener() {
                     @Override
                     public void onResponse(JSONArray response) {
@@ -273,7 +274,7 @@ public class MainActivity extends AppCompatActivity  {
                     public void onError(ANError error) {
                         // handle error
                     }
-                });*/
+                });
 
             }
         });
@@ -287,12 +288,12 @@ public class MainActivity extends AppCompatActivity  {
     }
 
 
-    public void changeConfig(int priority,int distance, long interval) {
+    public void changeConfig(int priority,long distance, long interval) {
         Log.d("BackgroundLocation", "changePriority:  called" );
         Intent eventIntent = new Intent("LocationUpdatesService.startStopLocation");
         eventIntent.putExtra("ChangeConfigPriority",priority );
-       // eventIntent.putExtra("ChangeConfigDistance",distance );
-       // eventIntent.putExtra("ChangeConfigInterval",interval );
+        eventIntent.putExtra("ChangeConfigDistance",distance );
+        eventIntent.putExtra("ChangeConfigInterval",interval );
 
         getApplicationContext().sendBroadcast(eventIntent);
 
@@ -370,12 +371,12 @@ public class MainActivity extends AppCompatActivity  {
                            }
 
 
-                       if(arrayOfDistance.size() >= 8) {
+                       if(arrayOfDistance.size() >= 8 ) {
                               add(new GeofenceData("current",locationCoordinates.getLatitude(),locationCoordinates.getLongitude(),10));
                               GEOLOCATION = new Locations("",0,locationCoordinates.getLatitude(),locationCoordinates.getLongitude());
                               //changePriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
                               //stopBackgroundLocation();
-                             changeConfig(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY,5, 1000 * 30);
+                              changeConfig(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY,1, 0);
                              // locationsList.add(0,new Locations("Change Location Manager Config : "+" Time: "+convertTimestamp(new Date().getTime()),new Date().getTime(),0,0));
                               Objects.requireNonNull(rv_location.getAdapter()).notifyDataSetChanged();
                               arrayOfPoints.clear();
@@ -383,8 +384,12 @@ public class MainActivity extends AppCompatActivity  {
                        }
 
                        if(arrayOfPoints.size() > 0)
-                         {arrayOfPoints.remove(0);
-                        arrayOfDistance.remove(0);}
+                         {
+                            arrayOfPoints.remove(0);
+                            arrayOfDistance.remove(0);
+                         }
+
+
 
                     }
 
@@ -395,12 +400,13 @@ public class MainActivity extends AppCompatActivity  {
                     Objects.requireNonNull(rv_location.getAdapter()).notifyDataSetChanged();*/
 
 
+                    // if(!hasGeofence)
                     locationsList.add(0,new Locations("Time: "+ convertTimestamp(locationCoordinates.getTimestamp()) +"\nLatitude: "+locationCoordinates.getLatitude()+
                             "\nLongitude: "+locationCoordinates.getLongitude(),locationCoordinates.getTimestamp(),locationCoordinates.getLatitude(),locationCoordinates.getLongitude()));
                     Objects.requireNonNull(rv_location.getAdapter()).notifyDataSetChanged();
 
 
-
+                    if(!hasGeofence)
                     AndroidNetworking.post("https://tracking-demo.herokuapp.com/api/tracking")
                             .addBodyParameter("phoneid", deviceId)
                             .addBodyParameter("lat", String.valueOf(locationCoordinates.getLatitude()))
@@ -451,7 +457,7 @@ public class MainActivity extends AppCompatActivity  {
                         arrayOfPoints.clear();
                         arrayOfDistance.clear();
                       //  startBackgroundLocation();
-                        changeConfig(LocationRequest.PRIORITY_HIGH_ACCURACY,0, 1000 * 10);
+                        changeConfig(LocationRequest.PRIORITY_HIGH_ACCURACY,0, 1000 * 5);
                         removeAll();
                     }
 
@@ -477,6 +483,10 @@ public class MainActivity extends AppCompatActivity  {
         Intent eventIntent = new Intent("LocationUpdatesService.startStopLocation");
         eventIntent.putExtra("StartStopLocation", "STOP");
         this.sendBroadcast(eventIntent);
+        arrayOfDistance.clear();
+        arrayOfPoints.clear();
+       // changeConfig(LocationRequest.PRIORITY_HIGH_ACCURACY,0, 1000 * 5);
+        removeAll();
         super.onDestroy();
     }
 

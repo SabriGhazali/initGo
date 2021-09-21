@@ -64,8 +64,8 @@ public class LocationUpdatesService extends Service {
     public static final String LOCATION_EVENT_DATA_NAME = "LocationData";
 
 
-    public static long UPDATE_INTERVAL_IN_MILLISECONDS = 10 * 1000;
-    public static int PRIORITY = LocationRequest.PRIORITY_HIGH_ACCURACY ;
+    public static long UPDATE_INTERVAL_IN_MILLISECONDS = 5 * 1000;
+    public static int  PRIORITY = LocationRequest.PRIORITY_HIGH_ACCURACY ;
     public static long UPDATE_INTERVAL_IN_DISPLACEMENT = 0 ;
 
     /**
@@ -251,14 +251,14 @@ public class LocationUpdatesService extends Service {
 
     private BroadcastReceiver mEventReceiver;
 
-    public void changePriority(int priority){
+    public void changePriority(int priority,long distance, long interval){
 
        // removeLocationUpdates();
 
-       // mLocationRequest = new LocationRequest();
+        mLocationRequest = new LocationRequest();
         mLocationRequest.setPriority(priority);
-      //  mLocationRequest.setInterval(UPDATE_INTERVAL_IN_MILLISECONDS);
-       // mLocationRequest.setSmallestDisplacement(UPDATE_INTERVAL_IN_DISPLACEMENT);
+        mLocationRequest.setInterval(interval);
+        mLocationRequest.setSmallestDisplacement(distance);
        // mLocationRequest.setFastestInterval(UPDATE_INTERVAL_IN_MILLISECONDS / 2);
        // mLocationRequest.setMaxWaitTime(UPDATE_INTERVAL_IN_MILLISECONDS * 2);
 
@@ -266,7 +266,7 @@ public class LocationUpdatesService extends Service {
 
     }
 
-    public void changeDistanceInterval(long distance, long interval){
+  /*  public void changeDistanceInterval(long distance, long interval){
 
         // removeLocationUpdates();
 
@@ -279,7 +279,7 @@ public class LocationUpdatesService extends Service {
 
         // requestLocationUpdates();
 
-    }
+    }*/
 
 
     public void createEventReceiver() {
@@ -288,8 +288,8 @@ public class LocationUpdatesService extends Service {
             public void onReceive(Context context, Intent intent) {
                 String startStop = intent.getStringExtra("StartStopLocation");
 
-                if(intent.hasExtra("ChangeConfigPriority")){
-                    changePriority(intent.getIntExtra("ChangeConfigPriority",LocationRequest.PRIORITY_HIGH_ACCURACY ));
+                if(intent.hasExtra("ChangeConfigPriority") && intent.hasExtra("ChangeConfigDistance") && intent.hasExtra("ChangeConfigInterval")){
+                    changePriority(intent.getIntExtra("ChangeConfigPriority",LocationRequest.PRIORITY_HIGH_ACCURACY ),intent.getLongExtra("ChangeConfigDistance",  UPDATE_INTERVAL_IN_DISPLACEMENT) , intent.getLongExtra("ChangeConfigInterval", UPDATE_INTERVAL_IN_MILLISECONDS ));
                 }
 
                /* if(intent.hasExtra("ChangeConfigDistance") && intent.hasExtra("ChangeConfigInterval")){
